@@ -34,31 +34,41 @@ def remove_background():
         
         # Remove background using rembg (returns PNG with alpha channel)
         print('Removing background...')
-        output_image = remove(input_image, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
+        output_image = remove(input_image)
         
-        # Ensure transparency is preserved
-        img = Image.open(io.BytesIO(output_image))
-        
-        # Convert to RGBA if not already (ensures alpha channel)
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
+        # Load image and ensure RGBA mode
+        img = Image.open(io.BytesIO(output_image)).convert('RGBA')
         
         # Apply gradient fade to bottom 30% of image for smooth blending
         width, height = img.size
         fade_height = int(height * 0.3)  # Bottom 30% of image
         
-        # Create gradient mask (fully opaque at top, transparent at bottom)
-        gradient = Image.new('L', (width, height), 255)  # Start with fully opaque
-        for y in range(height - fade_height, height):
-            # Calculate alpha (255 = opaque, 0 = transparent)
-            alpha = int(255 * (1 - (y - (height - fade_height)) / fade_height))
-            for x in range(width):
-                gradient.putpixel((x, y), alpha)
+        # Get existing alpha channel from rembg output
+        r, g, b, alpha = img.split()
         
-        # Apply gradient mask to alpha channel
-        alpha_channel = img.split()[3]  # Get existing alpha
-        alpha_channel = Image.composite(gradient, alpha_channel, gradient.point(lambda x: 255))
-        img.putalpha(alpha_channel)
+        # Create gradient mask for bottom fade
+        gradient = Image.new('L', (width, height), 255)
+        pixels = gradient.load()
+        
+        for y in range(height - fade_height, height):
+            # Calculate fade factor (1.0 at top of fade, 0.0 at bottom)
+            fade_factor = 1.0 - ((y - (height - fade_height)) / fade_height)
+            fade_alpha = int(255 * fade_factor)
+            for x in range(width):
+                pixels[x, y] = fade_alpha
+        
+        # Combine existing alpha with gradient (multiply effect)
+        alpha_pixels = alpha.load()
+        gradient_pixels = gradient.load()
+        
+        for y in range(height):
+            for x in range(width):
+                # Multiply existing alpha by gradient alpha
+                combined_alpha = int((alpha_pixels[x, y] / 255) * (gradient_pixels[x, y] / 255) * 255)
+                alpha_pixels[x, y] = combined_alpha
+        
+        # Apply combined alpha
+        img.putalpha(alpha)
         
         # Save with transparency
         output_buffer = io.BytesIO()
