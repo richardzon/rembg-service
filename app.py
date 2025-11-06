@@ -32,13 +32,27 @@ def remove_background():
         
         input_image = response.content
         
-        # Remove background using rembg
+        # Remove background using rembg (returns PNG with alpha channel)
         print('Removing background...')
-        output_image = remove(input_image)
+        output_image = remove(input_image, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10)
         
-        # Return processed image
+        # Ensure transparency is preserved
+        img = Image.open(io.BytesIO(output_image))
+        
+        # Convert to RGBA if not already (ensures alpha channel)
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+        
+        # Save with transparency
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format='PNG', optimize=True)
+        output_buffer.seek(0)
+        
+        print(f'Background removed! Image size: {len(output_buffer.getvalue())} bytes')
+        
+        # Return processed image with transparency
         return send_file(
-            io.BytesIO(output_image),
+            output_buffer,
             mimetype='image/png',
             as_attachment=False,
             download_name='output.png'
