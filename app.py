@@ -43,6 +43,23 @@ def remove_background():
         if img.mode != 'RGBA':
             img = img.convert('RGBA')
         
+        # Apply gradient fade to bottom 30% of image for smooth blending
+        width, height = img.size
+        fade_height = int(height * 0.3)  # Bottom 30% of image
+        
+        # Create gradient mask (fully opaque at top, transparent at bottom)
+        gradient = Image.new('L', (width, height), 255)  # Start with fully opaque
+        for y in range(height - fade_height, height):
+            # Calculate alpha (255 = opaque, 0 = transparent)
+            alpha = int(255 * (1 - (y - (height - fade_height)) / fade_height))
+            for x in range(width):
+                gradient.putpixel((x, y), alpha)
+        
+        # Apply gradient mask to alpha channel
+        alpha_channel = img.split()[3]  # Get existing alpha
+        alpha_channel = Image.composite(gradient, alpha_channel, gradient.point(lambda x: 255))
+        img.putalpha(alpha_channel)
+        
         # Save with transparency
         output_buffer = io.BytesIO()
         img.save(output_buffer, format='PNG', optimize=True)
