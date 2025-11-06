@@ -32,43 +32,45 @@ def remove_background():
         
         input_image = response.content
         
-        # Remove background using rembg (returns PNG with alpha channel)
+        # Remove background using rembg (returns PNG with fully transparent background)
         print('Removing background...')
         output_image = remove(input_image)
         
         # Load image and ensure RGBA mode
         img = Image.open(io.BytesIO(output_image)).convert('RGBA')
         
-        # Apply gradient fade to bottom 30% of image for smooth blending
+        # Apply gradient fade to bottom 30% of ENTIRE IMAGE (including the gangster)
+        # This makes the gangster fade out at the bottom for smooth card blending
         width, height = img.size
-        fade_height = int(height * 0.3)  # Bottom 30% of image
+        fade_height = int(height * 0.3)  # Bottom 30% fades out
+        fade_start = height - fade_height
         
-        # Get existing alpha channel from rembg output
-        r, g, b, alpha = img.split()
+        # Create new alpha channel with gradient applied to EVERYTHING
+        new_alpha = Image.new('L', (width, height), 255)
+        alpha_pixels = new_alpha.load()
         
-        # Create gradient mask for bottom fade
-        gradient = Image.new('L', (width, height), 255)
-        pixels = gradient.load()
-        
-        for y in range(height - fade_height, height):
-            # Calculate fade factor (1.0 at top of fade, 0.0 at bottom)
-            fade_factor = 1.0 - ((y - (height - fade_height)) / fade_height)
-            fade_alpha = int(255 * fade_factor)
-            for x in range(width):
-                pixels[x, y] = fade_alpha
-        
-        # Combine existing alpha with gradient (multiply effect)
-        alpha_pixels = alpha.load()
-        gradient_pixels = gradient.load()
+        # Get original alpha from rembg (0 = background, 255 = foreground)
+        original_alpha = img.split()[3]
+        original_pixels = original_alpha.load()
         
         for y in range(height):
             for x in range(width):
-                # Multiply existing alpha by gradient alpha
-                combined_alpha = int((alpha_pixels[x, y] / 255) * (gradient_pixels[x, y] / 255) * 255)
-                alpha_pixels[x, y] = combined_alpha
+                # Start with original alpha from rembg
+                base_alpha = original_pixels[x, y]
+                
+                # Apply gradient fade to bottom portion
+                if y >= fade_start:
+                    # Calculate how far into the fade we are (0.0 to 1.0)
+                    fade_progress = (y - fade_start) / fade_height
+                    # Fade factor goes from 1.0 (fully visible) to 0.0 (fully transparent)
+                    fade_factor = 1.0 - fade_progress
+                    # Multiply base alpha by fade factor
+                    base_alpha = int(base_alpha * fade_factor)
+                
+                alpha_pixels[x, y] = base_alpha
         
-        # Apply combined alpha
-        img.putalpha(alpha)
+        # Apply the new alpha channel
+        img.putalpha(new_alpha)
         
         # Save with transparency
         output_buffer = io.BytesIO()
