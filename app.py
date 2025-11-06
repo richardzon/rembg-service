@@ -34,10 +34,26 @@ def remove_background():
         
         # Remove background using rembg (returns PNG with fully transparent background)
         print('Removing background...')
-        output_image = remove(input_image)
+        print(f'Input image size: {len(input_image)} bytes')
+        
+        # Use rembg with explicit parameters for best transparency
+        output_image = remove(
+            input_image,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=10
+        )
+        
+        print(f'Output image size after rembg: {len(output_image)} bytes')
         
         # Load image and ensure RGBA mode
-        img = Image.open(io.BytesIO(output_image)).convert('RGBA')
+        img = Image.open(io.BytesIO(output_image))
+        print(f'Image mode: {img.mode}')
+        
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+            print('Converted to RGBA')
         
         # Apply gradient fade to bottom 30% of ENTIRE IMAGE (including the gangster)
         # This makes the gangster fade out at the bottom for smooth card blending
